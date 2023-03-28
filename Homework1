@@ -1,0 +1,164 @@
+import math
+import re
+import jieba
+import pandas as pd
+
+def load_data(path, type):
+    """
+    读取文件信息，并对文件进行预处理
+    path：文件所在路径
+    type：当为'phrase'时以 词 为单位计算，当为‘word’时以 字 为单位计算
+    """
+
+    with open('./data/cn_stopwords.txt', 'r', encoding='utf-8') as f:
+        stopwords = []
+        for item in f:
+            if item != '\n':
+                stopwords.append(item.strip())
+
+    with open(path, 'r', encoding='ANSI') as f:
+        data = f.read()
+        data = data.replace('本书来自 www.cr173.com 免费 txt 小说下载站\n 更多更新免费电子书请关注www.cr173.com', '')
+        data = re.sub(u'[a-zA-Z0-9’!"#$%&\'()*+,-./:：;<=>?@，。?★、…【】《》？“”‘’！[\\]^_`{|}~「」『』（）]+', '', data)
+        data = data.replace(' ', '')
+        data = data.replace('\n', '')
+        data = data.replace('\t', '')
+        for item in stopwords:
+            data = data.replace(item, '')
+        f.close()
+
+    words = []
+    if type == 'phrase':
+        words = list(jieba.cut(data))
+    elif type == 'word':
+        words = [item for item in data]
+
+    return data, words
+def word_frequency(unigram,bigram,trigram,words):
+    """
+    计算并返回：一元词词频 unigram、二元词词频 bigram、三元词词频 trigram
+    """
+    # 一元词词频
+    for i in range(len(words)):
+        unigram[words[i]] = unigram.get(words[i], 0) + 1
+
+    # 二元词词频
+    for i in range(len(words) - 1):
+        bigram[(words[i], words[i + 1])] = bigram.get((words[i], words[i + 1]), 0) + 1
+
+    # 三元词词频
+    for i in range(len(words) - 2):
+        trigram[((words[i], words[i + 1]), words[i + 2])] = trigram.get(((words[i], words[i + 1]), words[i + 2]), 0) + 1
+
+def unigram_entropy(unigram):
+    """
+    计算一元模型的信息熵
+    unigram：一元词频
+    """
+    unigram_sum = sum([item[1] for item in unigram.items()])
+    entropy = 0
+    for item in unigram.items():
+        entropy += -(item[1] / unigram_sum) * math.log(item[1] / unigram_sum, 2)
+    entropy = round(entropy, 4)
+
+    return entropy
+
+
+def bigram_entropy(unigram, bigram):
+    """
+    计算二元模型的信息熵
+    unigram：一元词频
+    bigram：二元词频
+    """
+    bigram_num = sum([item[1] for item in bigram.items()])
+    entropy = 0
+    for item in bigram.items():
+        jp = item[1] / bigram_num
+        cp = item[1] / unigram[item[0][0]]
+        entropy += -jp * math.log(cp, 2)
+    entropy = round(entropy, 4)
+
+    return entropy
+
+
+def trigram_entropy(bigram, trigram):
+    """
+    计算三元模型的信息熵
+    bigram：二元词频
+    trigram：三元词频
+    """
+    trigram_num = sum([item[1] for item in trigram.items()])
+    entropy = 0
+    for item in trigram.items():
+        jp = item[1] / trigram_num
+        cp = item[1] / bigram[item[0][0]]
+        entropy += -jp * math.log(cp, 2)
+    entropy = round(entropy, 4)
+
+    return entropy
+
+
+def main(filepath, type):
+    """
+    计算三种模型的信息熵并输出
+    filepath：文件所在路径
+    type：当为'phrase'时以 词 为单位计算，当为‘word’时以 字 为单位计算
+    """
+   
+    data, words = load_data(filepath, type)  # 数据读取与预处理
+
+    len_data= len(data)
+    len_words = len(words)
+
+    unigram = {}
+    bigram = {}
+    trigram = {}
+    word_frequency(unigram, bigram, trigram, words)
+
+    # 计算三种模型的信息熵与平均信息熵
+    unigram_result = unigram_entropy(unigram)
+    bigram_result = bigram_entropy(unigram, bigram)
+    trigram_result = trigram_entropy(bigram, trigram)
+
+    print('《',files_name[i],'》','   语料库字数  | 分字/词个数 |  unigram  |  bigram  |  trigram ')
+    print(' 中文信息熵         ', len_data, '  |  ', len_words, '  |  ', unigram_result, ' | ', bigram_result, ' | ', trigram_result, '\n')
+
+    return [len_data, len_words, unigram_result, bigram_result, trigram_result]
+
+
+if __name__ == "__main__":
+    files = [['data/novel/白马啸西风.txt'],
+             ['data/novel/碧血剑.txt'],
+             ['./data/novel/飞狐外传.txt'],
+             ['./data/novel/连城诀.txt'],
+             ['./data/novel/鹿鼎记.txt'],
+             ['./data/novel/三十三剑客图.txt'],
+             ['./data/novel/射雕英雄传.txt'],
+             ['./data/novel/神雕侠侣.txt'],
+             ['./data/novel/书剑恩仇录.txt'],
+             ['./data/novel/天龙八部.txt'],
+             ['./data/novel/侠客行.txt'],
+             ['./data/novel/笑傲江湖.txt'],
+             ['./data/novel/雪山飞狐.txt'],
+             ['./data/novel/倚天屠龙记.txt'],
+             ['./data/novel/鸳鸯刀.txt'],
+             ['./data/novel/越女剑.txt']]
+    files_name = ["白马啸西风", "碧血剑", "飞狐外传", "连城诀", "鹿鼎记", "三十三剑客图", "射雕英雄传", "神雕侠侣",
+                 "书剑恩仇录", "天龙八部", "侠客行", "笑傲江湖", "雪山飞狐", "倚天屠龙记", "鸳鸯刀", "越女剑"]
+
+    print('------------------单位：词----------------\n')
+    phrase_result = {}
+    for i, data in enumerate(files):
+        phrase_result[i] = main(data[0], 'phrase')
+
+    print('------------------单位：字----------------\n')
+    word_result = {}
+    for i, data in enumerate(files):
+        word_result[i] = main(data[0], 'word')
+
+    pd_phrase = pd.DataFrame(phrase_result, columns=['语料库字数', '分词/字个数', '一元模型信息熵', '二元模型信息熵',
+                                                     '三元模型信息熵'])
+    pd_phrase.to_excel('result.xlsx', sheet_name='phrase')
+    pd_word = pd.DataFrame(word_result, columns=['语料库字数', '分词/字个数', '一元模型信息熵', '二元模型信息熵',
+                                                     '三元模型信息熵'])
+    pd_word.to_excel('result.xlsx', sheet_name='word')
