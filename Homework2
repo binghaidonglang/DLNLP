@@ -1,0 +1,109 @@
+import numpy as np
+import pandas as pd
+import matplotlib
+import matplotlib.pyplot as plt
+from scipy import stats
+
+
+# 定义高斯分布的参数
+mean1, std1 = 164, 3
+mean2, std2 = 176, 5
+
+# 从两个高斯分布中生成各50个样本
+data1 = np.random.normal(mean1, std1, 500)
+data2 = np.random.normal(mean2, std2, 1500)
+data = np.concatenate((data1, data2), axis=0)
+
+# 将数据写入 CSV 文件
+df = pd.DataFrame(data, columns=['height'])
+df.to_csv('height_data.csv', index=False)
+
+"""
+# 绘制数据的直方图
+plt.hist(data, bins=20)
+plt.xlabel('Height (cm)')
+plt.ylabel('Count')
+plt.title('Distribution of Heights')
+plt.show()
+"""
+
+epoch_max = 100
+K = 2
+N = len(data)
+for k in range(9):
+    mu_result = np.zeros([epoch_max, K])
+    sigma_result = np.zeros([epoch_max, K])
+    alpha_result = np.zeros([epoch_max, K])
+
+    mu0_1 = [170, 168, 160, 170, 170, 170, 170, 170, 170]
+    mu0_2 = [160, 168, 180, 160, 160, 160, 160, 160, 160]
+    sigma0_1 = [10, 10, 10, 10, 5, 20, 10, 10, 10]
+    sigma0_2 = [10, 10, 10, 10, 20, 5, 10, 10, 10]
+    alpha0_1 = [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.2, 0.8]
+    alpha0_2 = [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.8, 0.2]
+
+    mu_1, mu_2 = mu0_1[k], mu0_2[k]
+    sigma_1, sigma_2 = sigma0_1[k], sigma0_2[k]
+    alpha_1, alpha_2 = alpha0_1[k], alpha0_2[k]
+
+    mu_result[0] = [mu_1, mu_2]
+    sigma_result[0] = [sigma_1, sigma_2]
+    alpha_result[0] = [alpha_1, alpha_2]
+
+    omega_1 = np.zeros(N)
+    omega_2 = np.zeros(N)
+
+    for t in range(1, epoch_max):
+        for i in range(len(data)-1):
+            gauss_1 = stats.norm.pdf(data[i], mu_1, sigma_1 ** 0.5)
+            gauss_2 = stats.norm.pdf(data[i], mu_2, sigma_2 ** 0.5)
+
+            omega_1[i] = alpha_1 * gauss_1 / (alpha_1 * gauss_1 + alpha_2 * gauss_2)
+            omega_2[i] = alpha_2 * gauss_2 / (alpha_1 * gauss_1 + alpha_2 * gauss_2)
+
+        alpha_1 = np.sum(omega_1) / N
+        alpha_2 = np.sum(omega_2) / N
+
+        mu_1 = np.sum(omega_1 * data) / np.sum(omega_1)
+        mu_2 = np.sum(omega_2 * data) / np.sum(omega_2)
+
+        sigma_1 = np.sum(omega_1 * (data - mu_1) ** 2) / np.sum(omega_1)
+        sigma_2 = np.sum(omega_2 * (data - mu_2) ** 2) / np.sum(omega_2)
+
+        mu_result[t] = [mu_1, mu_2]
+        sigma_result[t] = [sigma_1, sigma_2]
+        alpha_result[t] = [alpha_1, alpha_2]
+
+    plt.plot(range(epoch_max), mu_result[:, 0], linewidth=2.5, label='Males')
+    plt.plot(range(epoch_max), mu_result[:, 1], linewidth=2.5, label='Females')
+    plt.legend()
+    plt.xlabel('Epoch')
+    plt.ylabel('Graph of mean height / m')
+    plt.title('Mean height curve')
+    plt.show()
+
+    plt.plot(range(epoch_max), sigma_result[:, 0], linewidth=2.5, label='Males')
+    plt.plot(range(epoch_max), sigma_result[:, 1], linewidth=2.5, label='Females')
+    plt.legend()
+    plt.xlabel('Epoch')
+    plt.ylabel('Standard deviation of height')
+    plt.title('Graph of height standard deviation')
+    plt.show()
+
+    plt.plot(range(epoch_max), alpha_result[:, 0], linewidth=2.5, label='Males')
+    plt.plot(range(epoch_max), alpha_result[:, 1], linewidth=2.5, label='Females')
+    plt.legend()
+    plt.xlabel('Epoch')
+    plt.ylabel('Prior probability')
+    plt.title('Graph of Prior probability')
+    plt.show()
+
+
+    print(mu_result[epoch_max-1, :])
+    print(sigma_result[epoch_max-1, :])
+    print(alpha_result[epoch_max-1, :])
+    print("------------------------------------------")
+
+
+
+
