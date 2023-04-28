@@ -1,0 +1,105 @@
+import re
+import jieba
+from sklearn.cluster import KMeans
+import numpy as np
+import lda
+import matplotlib.pyplot as plt
+
+def load_data(path):
+    """
+    读取文件信息，并对文件进行预处理
+    path：文件所在路径
+    type：当为'phrase'时以 词 为单位计算，当为‘word’时以 字 为单位计算
+    """
+
+    with open('./data/cn_stopwords.txt', 'r', encoding='utf-8') as f:
+        stopwords = []
+        for item in f:
+            if item != '\n':
+                stopwords.append(item.strip())
+
+    with open(path, 'r', encoding='ANSI') as f:
+        data = f.read()
+        data = data.replace('本书来自 www.cr173.com 免费 txt 小说下载站\n '
+                            '更多更新免费电子书请关注www.cr173.com', '')
+        data = data.replace('本书来自www.cr173.com免费txt小说下载站\n'
+                            '更多更新免费电子书请关注www.cr173.com', '')
+        data = re.sub(u'[a-zA-Z0-9’!"#$%&\'()*+,-./:：;<=>?@，。?'
+                      u'★、…【】《》？“”‘’！[\\]^_`{|}~「」『』（）]+', '', data)
+        data = data.replace(' ', '')
+        data = data.replace('\n', '')
+        data = data.replace('\t', '')
+        data = data.replace('\u3000', '')
+        for item in stopwords:
+            data = data.replace(item, '')
+        f.close()
+
+    return data
+
+
+if __name__ == "__main__":
+    print('\n-------------------------------------------------\n')
+    files_path = './data/novel/'
+    files_name = ["白马啸西风", "碧血剑", "飞狐外传", "连城诀", "鹿鼎记", "三十三剑客图", "射雕英雄传", "神雕侠侣",
+                 "书剑恩仇录", "天龙八部", "侠客行", "笑傲江湖", "雪山飞狐", "倚天屠龙记", "鸳鸯刀", "越女剑"]
+    type = 'word'
+    n_piece = 20
+
+    content = []
+    for i, name in enumerate(files_name):
+        data = load_data(files_path+name+'.txt')  # 数据读取与预处理
+
+        if type == 'phrase':
+            words = jieba.lcut(data)
+        elif type == 'word':
+            words = [item for item in data]
+
+        pos = int(len(words) // n_piece)
+        for j in range(n_piece):
+            data_temp = []
+            data_temp = data_temp + words[j * pos:j * pos + 500]
+            content.append(data_temp)
+
+    vocab = set(word for paragraph in content for word in paragraph)
+    word2id = dict((word, id) for id, word in enumerate(vocab))
+    id2word = dict((id, word) for id, word in enumerate(vocab))
+    doc_word_matrix = np.zeros((len(content), len(vocab)), dtype=np.int32)
+    for i, paragraph in enumerate(content):
+        for word in paragraph:
+            doc_word_matrix[i, word2id[word]] += 1
+
+    start_topic = 2
+    end_topic = 51
+    epoch_acc = []
+    for n_topic in range(start_topic, end_topic):
+        model = lda.LDA(n_topics=n_topic,
+                        n_iter=2000,
+                        random_state=1,
+                        alpha=0.1,
+                        eta=0.01)
+        model.fit(doc_word_matrix)
+
+        topic_word = model.topic_word_
+        result = model.transform(doc_word_matrix)
+        for i, topic_dist in enumerate(topic_word):
+            topic_words = np.array(list(vocab))[np.argsort(topic_dist)][:-(10 + 1):-1]
+            print('主题 {} : {}'.format(i, ' '.join(topic_words)))
+
+        kmeans = KMeans(n_clusters=16)
+        kmeans.fit(result)
+        labels = kmeans.labels_
+        print('------------------------节选片段聚类结果-------------------------\n')
+        for i in range(len(labels)):
+            if i % n_piece == 0:
+                print(files_name[i//20]+' : ')
+            print(labels[i], end=' ')
+            if (i + 1) % n_piece == 0:
+                print('\n')
+
+        acc = []
+        for i in range(16):
+            num = np.bincount(labels[i*n_piece:(i+1)*n_piece])
+            label_max = np.argmax(num)
+            acc.append(num[label_max])
+        epoch_acc.append(sum(acc)/(16*n_piece))
+
